@@ -24,17 +24,40 @@ def _to_column_format(im):
     :param line_height: Printed line height in dots
     """
     width_pixels, height_pixels = im.size
-    line_height = 8
+    line_height = 8*3
     top = 0
     left = 0
     while left < width_pixels:
         remaining_pixels = width_pixels - left
-        box = (left, top, left + line_height, top + height_pixels)
-        slice = im.transform((line_height, height_pixels), Image.EXTENT, box)
-        bytes = slice.tobytes()
-        yield ESC + b"*" + struct.pack("<BH",1,len(bytes))
-        yield bytes
-        yield b"\r" + ESC + b"J" + struct.pack("<B",24)
+        
+        for i in range(0,3):
+
+            box = (left + i, top, left + line_height + i, top + height_pixels)
+            slice = im.transform((line_height, height_pixels), Image.EXTENT, box)
+            data = slice.tobytes()
+            
+            assert len(data) % 3 == 0
+            assert len(data) == height_pixels * 3
+
+            yield ESC + b"L" + struct.pack("<H",len(data)//3)
+
+            ai = 0
+            for j in range(0, len(data), 3):
+                value = struct.unpack(">I",b'\x00'+data[j:j+3])[0]
+                sparse = value
+                byte = 0x00
+                for k in range(0, 8):
+                    #100100100100100100100100
+                    byte |= ((1 << (3 * k + 2)) & sparse) >> (3 * k - k +2)
+                ai+=1
+                yield struct.pack("B",byte)
+            
+            assert ai == len(data)//3
+
+            if i < 2:
+                yield b"\r" + ESC + b"J" + struct.pack("<B",1)
+            else:
+                yield b"\r" + ESC + b"J" + struct.pack("<B",24-2)
         left += line_height
 
 if __name__ == "__main__":
