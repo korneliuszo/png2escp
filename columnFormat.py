@@ -24,40 +24,40 @@ def _to_column_format(im):
     :param line_height: Printed line height in dots
     """
     width_pixels, height_pixels = im.size
-    line_height = 8*3
+    line_height = 8*3*2
     top = 0
     left = 0
     while left < width_pixels:
         remaining_pixels = width_pixels - left
         
-        for i in range(0,3):
+        for i in range(0,2):
 
             box = (left + i, top, left + line_height + i, top + height_pixels)
             slice = im.transform((line_height, height_pixels), Image.EXTENT, box)
             data = slice.tobytes()
             
-            assert len(data) % 3 == 0
-            assert len(data) == height_pixels * 3
+            assert len(data) % 6 == 0
+            assert len(data) == height_pixels * 6
 
-            yield ESC + b"L" + struct.pack("<H",len(data)//3)
+            yield ESC + b"*" + struct.pack("<BH",39,len(data)//6)
 
             ai = 0
-            for j in range(0, len(data), 3):
-                value = struct.unpack(">I",b'\x00'+data[j:j+3])[0]
+            for j in range(0, len(data), 2*3):
+                value = struct.unpack(">Q",b'\x00\x00'+data[j:j+3*2])[0]
                 sparse = value
                 byte = 0x00
-                for k in range(0, 8):
+                for k in range(0, 24):
                     #100100100100100100100100
-                    byte |= ((1 << (3 * k + 2)) & sparse) >> (3 * k - k +2)
-                ai+=1
-                yield struct.pack("B",byte)
+                    byte |= ((1 << (2 * k + 1)) & sparse) >> (2 * k - k +1)
+                ai+=3
+                yield struct.pack(">I",byte)[1:4]
             
-            assert ai == len(data)//3
+            assert ai == len(data)//2
 
-            if i < 2:
-                yield b"\r" + ESC + b"J" + struct.pack("<B",1)
+            if i < 1:
+                yield b"\r" + ESC + b"+" + struct.pack("<B",1) + b"\n"
             else:
-                yield b"\r" + ESC + b"J" + struct.pack("<B",24-2)
+                yield b"\r" + ESC + b"+" + struct.pack("<B",48-1) +b"\n"
         left += line_height
 
 if __name__ == "__main__":
