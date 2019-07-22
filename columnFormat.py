@@ -23,6 +23,12 @@ def _to_column_format(im):
     :param im: Image to extract from
     :param line_height: Printed line height in dots
     """
+
+    im = im.convert("L")  # Invert: Only works on 'L' images
+    im = ImageOps.invert(im) # Bits are sent with 0 = white, 1 = black in ESC/POS
+    im = im.convert("1") # Pure black and white
+    im = im.transpose(Image.ROTATE_270).transpose(Image.FLIP_LEFT_RIGHT)
+
     width_pixels, height_pixels = im.size
     line_height = 8*3*2
     top = 0
@@ -72,10 +78,7 @@ if __name__ == "__main__":
     
     # Initial rotate. mirror, and extract blobs for each 8 or 24-pixel row
     # Convert to black & white via greyscale (so that bits can be inverted)
-    im = im.convert("L")  # Invert: Only works on 'L' images
-    im = ImageOps.invert(im) # Bits are sent with 0 = white, 1 = black in ESC/POS
-    im = im.convert("1") # Pure black and white
-    im = im.transpose(Image.ROTATE_270).transpose(Image.FLIP_LEFT_RIGHT)
+
     # Generate ESC/POS header and print image
     # Height and width refer to output size here, image is rotated in memory so coordinates are swapped
    
