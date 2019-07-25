@@ -24,12 +24,44 @@ def _to_column_format(im):
     :param line_height: Printed line height in dots
     """
 
-    im = im.convert("L")  # Invert: Only works on 'L' images
-    im = ImageOps.invert(im) # Bits are sent with 0 = white, 1 = black in ESC/POS
-    im = im.convert("1") # Pure black and white
+    #im = im.convert("L")  # Invert: Only works on 'L' images
+    #im = ImageOps.invert(im) # Bits are sent with 0 = white, 1 = black in ESC/POS
+    #im = im.convert("1") # Pure black and white
+    im = im.convert("RGB")
     im = im.transpose(Image.ROTATE_270).transpose(Image.FLIP_LEFT_RIGHT)
+    ci = Image.new("1",im.size,0)
+    mi = Image.new("1",im.size,0)
+    yi = Image.new("1",im.size,0)
+    ki = Image.new("1",im.size,0)
 
     width_pixels, height_pixels = im.size
+
+    for y in range(0,height_pixels):
+        for x in range(0,width_pixels):
+            box=(x,y,x+1,y+1)
+            r,g,b=im.getpixel((x, y))
+            if r==0 and g==0 and b==0:
+                ki.paste(1,box)
+            elif r==255 and g==255 and b==255:
+                pass
+            elif r==255 and g==0 and b==0:
+                mi.paste(1,box)
+                yi.paste(1,box)
+            elif r==0 and g==255 and b==0:
+                ci.paste(1,box)
+                yi.paste(1,box)
+            elif r==0 and g==0 and b==255:
+                ci.paste(1,box)
+                mi.paste(1,box)
+            elif r==255 and g==255 and b==0:
+                yi.paste(1,box)
+            elif r==0 and g==255 and b==255:
+                ci.paste(1,box)
+            elif r==255 and g==0 and b==255:
+                mi.paste(1,box)
+            else:
+                raise Exception("Not known colour %d,%d,%d"%(r,g,b))
+
     line_height = 8*3*2
     top = 0
     left = 0
@@ -38,26 +70,39 @@ def _to_column_format(im):
         
         for i in range(0,2):
 
-            box = (left + i, top, left + line_height + i, top + height_pixels)
-            slice = im.transform((line_height, height_pixels), Image.EXTENT, box)
-            data = slice.tobytes()
-            
-            assert len(data) % 6 == 0
-            assert len(data) == height_pixels * 6
+            for colour in (4,2,1,0):
+                
+                switcher={
+                        4: yi,
+                        2: ci,
+                        1: mi,
+                        0: ki,
+                        }
 
-            yield ESC + b"*" + struct.pack("<BH",39,len(data)//6)
-
-            ai = 0
-            for j in range(0, len(data), 2*3):
-                value = struct.unpack(">Q",b'\x00\x00'+data[j:j+3*2])[0]
-                sparse = value
-                byte = 0x00
-                for k in range(0, 24):
-                    #100100100100100100100100
-                    byte |= ((1 << (2 * k + 1)) & sparse) >> (2 * k - k +1)
-                ai+=3
-                yield struct.pack(">I",byte)[1:4]
+                box = (left + i, top, left + line_height + i, top + height_pixels)
+                slice = switcher[colour].transform((line_height, height_pixels), Image.EXTENT, box)
+                data = slice.tobytes()
             
+                assert len(data) % 6 == 0
+                assert len(data) == height_pixels * 6
+
+                yield ESC + b"r" + struct.pack("<B",colour)
+
+                yield ESC + b"*" + struct.pack("<BH",39,len(data)//6)
+
+                ai = 0
+                for j in range(0, len(data), 2*3):
+                    value = struct.unpack(">Q",b'\x00\x00'+data[j:j+3*2])[0]
+                    sparse = value
+                    byte = 0x00
+                    for k in range(0, 24):
+                        #100100100100100100100100
+                        byte |= ((1 << (2 * k + 1)) & sparse) >> (2 * k - k +1)
+                    ai+=3
+                    yield struct.pack(">I",byte)[1:4]
+                    
+                yield b"\r"
+
             assert ai == len(data)//2
 
             if i < 1:
