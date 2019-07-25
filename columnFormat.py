@@ -16,7 +16,7 @@ import os
 
 ESC = b"\x1b";
 
-def _to_column_format(im):
+def _to_column_format(im,colour='cmyk'):
     """
     Extract slices of an image as equal-sized blobs of column-format data.
 
@@ -36,31 +36,38 @@ def _to_column_format(im):
 
     width_pixels, height_pixels = im.size
 
-    for y in range(0,height_pixels):
-        for x in range(0,width_pixels):
-            box=(x,y,x+1,y+1)
-            r,g,b=im.getpixel((x, y))
-            if r==0 and g==0 and b==0:
-                ki.paste(1,box)
-            elif r==255 and g==255 and b==255:
-                pass
-            elif r==255 and g==0 and b==0:
-                mi.paste(1,box)
-                yi.paste(1,box)
-            elif r==0 and g==255 and b==0:
-                ci.paste(1,box)
-                yi.paste(1,box)
-            elif r==0 and g==0 and b==255:
-                ci.paste(1,box)
-                mi.paste(1,box)
-            elif r==255 and g==255 and b==0:
-                yi.paste(1,box)
-            elif r==0 and g==255 and b==255:
-                ci.paste(1,box)
-            elif r==255 and g==0 and b==255:
-                mi.paste(1,box)
-            else:
-                raise Exception("Not known colour %d,%d,%d"%(r,g,b))
+    if colour == 'cmyk':
+        for y in range(0,height_pixels):
+            for x in range(0,width_pixels):
+                box=(x,y,x+1,y+1)
+                r,g,b=im.getpixel((x, y))
+                if r==0 and g==0 and b==0:
+                    ki.paste(1,box)
+                elif r==255 and g==255 and b==255:
+                    pass
+                elif r==255 and g==0 and b==0:
+                    mi.paste(1,box)
+                    yi.paste(1,box)
+                elif r==0 and g==255 and b==0:
+                    ci.paste(1,box)
+                    yi.paste(1,box)
+                elif r==0 and g==0 and b==255:
+                    ci.paste(1,box)
+                    mi.paste(1,box)
+                elif r==255 and g==255 and b==0:
+                    yi.paste(1,box)
+                elif r==0 and g==255 and b==255:
+                    ci.paste(1,box)
+                elif r==255 and g==0 and b==255:
+                    mi.paste(1,box)
+                else:
+                    raise Exception("Not known colour %d,%d,%d"%(r,g,b))
+    elif colour == 'k':
+        ki = im.convert("L")  # Invert: Only works on 'L' images
+        ki = ImageOps.invert(ki) # Bits are sent with 0 = white, 1 = black in ESC/POS
+        ki = ki.convert("1") # Pure black and white
+    else:
+        raise Exception("Not known colour mode")
 
     line_height = 8*3*2
     top = 0
@@ -69,8 +76,12 @@ def _to_column_format(im):
         remaining_pixels = width_pixels - left
         
         for i in range(0,2):
-
-            for colour in (4,2,1,0):
+            
+            if colour == 'cmyk':
+                colours =  (4,2,1,0)
+            elif colour == 'k':
+                colours = (0,)
+            for col in colours:
                 
                 switcher={
                         4: yi,
@@ -80,13 +91,13 @@ def _to_column_format(im):
                         }
 
                 box = (left + i, top, left + line_height + i, top + height_pixels)
-                slice = switcher[colour].transform((line_height, height_pixels), Image.EXTENT, box)
+                slice = switcher[col].transform((line_height, height_pixels), Image.EXTENT, box)
                 data = slice.tobytes()
             
                 assert len(data) % 6 == 0
                 assert len(data) == height_pixels * 6
 
-                yield ESC + b"r" + struct.pack("<B",colour)
+                yield ESC + b"r" + struct.pack("<B",col)
 
                 yield ESC + b"*" + struct.pack("<BH",39,len(data)//6)
 
@@ -106,17 +117,16 @@ def _to_column_format(im):
             assert ai == len(data)//2
 
             if i < 1:
-                yield b"\r" + ESC + b"+" + struct.pack("<B",1) + b"\n"
+                yield ESC + b"+" + struct.pack("<B",1) + b"\n"
             else:
-                yield b"\r" + ESC + b"+" + struct.pack("<B",48-1) +b"\n"
+                yield ESC + b"+" + struct.pack("<B",48-1) +b"\n"
         left += line_height
 
 if __name__ == "__main__":
     # Configure
-    if len(sys.argv) > 1:
-        filename = sys.argv[1]
-    else:
-        filename = u"tulips.png"
+    if len(sys.argv) < 3:
+        raise Exception("Not enough parameters")
+    filename = sys.argv[1]
     
     # Load Image
     im = Image.open(filename)
@@ -129,5 +139,5 @@ if __name__ == "__main__":
    
     with os.fdopen(sys.stdout.fileno(), 'wb') as fp:
         fp.write(ESC + b'@' + ESC + b'P' + ESC + b'l\x00' + b'\r' + ESC + b'Q\x00')
-        for blob in _to_column_format (im):
+        for blob in _to_column_format (im,sys.argv[2]):
             fp.write(blob)
