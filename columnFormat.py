@@ -10,13 +10,14 @@ Do not attempt to use this snippet in production, get a copy of python-escpos in
 """
 
 from PIL import Image, ImageOps
+import bitstring
 import struct
 import sys
 import os
 
 ESC = b"\x1b";
 
-def _to_column_format(im,colour='cmyk'):
+def _to_column_format(im,colour='cmyk',overscan=2):
     """
     Extract slices of an image as equal-sized blobs of column-format data.
 
@@ -69,13 +70,13 @@ def _to_column_format(im,colour='cmyk'):
     else:
         raise Exception("Not known colour mode")
 
-    line_height = 8*3*2
+    line_height = 8*3*overscan
     top = 0
     left = 0
     while left < width_pixels:
         remaining_pixels = width_pixels - left
         
-        for i in range(0,2):
+        for i in range(0,overscan):
             
             if colour == 'cmyk':
                 colours =  (4,2,1,0)
@@ -94,37 +95,37 @@ def _to_column_format(im,colour='cmyk'):
                 slice = switcher[col].transform((line_height, height_pixels), Image.EXTENT, box)
                 data = slice.tobytes()
             
-                assert len(data) % 6 == 0
-                assert len(data) == height_pixels * 6
+                assert len(data) % (3 * overscan) == 0
+                assert len(data) == height_pixels * 3 * overscan
 
                 yield ESC + b"r" + struct.pack("<B",col)
 
-                yield ESC + b"*" + struct.pack("<BH",39,len(data)//6)
+                yield ESC + b"*" + struct.pack("<BH",39,len(data)//(3*overscan))
 
                 ai = 0
-                for j in range(0, len(data), 2*3):
-                    value = struct.unpack(">Q",b'\x00\x00'+data[j:j+3*2])[0]
+                for j in range(0, len(data), overscan*3):
+                    value = bitstring.Bits(data[j:j+3*overscan]).uintbe
                     sparse = value
                     byte = 0x00
                     for k in range(0, 24):
                         #100100100100100100100100
-                        byte |= ((1 << (2 * k + 1)) & sparse) >> (2 * k - k +1)
+                        byte |= ((1 << (overscan * k + overscan - 1)) & sparse) >> (overscan * k - k + overscan - 1 )
                     ai+=3
-                    yield struct.pack(">I",byte)[1:4]
+                    yield bitstring.Bits(uintbe=byte, length=3*8).tobytes()
                     
                 yield b"\r"
 
-            assert ai == len(data)//2
+                assert ai == len(data)//overscan
 
-            if i < 1:
+            if i < overscan-1:
                 yield ESC + b"+" + struct.pack("<B",1) + b"\n"
             else:
-                yield ESC + b"+" + struct.pack("<B",48-1) +b"\n"
+                yield ESC + b"+" + struct.pack("<B",48-overscan+1) +b"\n"
         left += line_height
 
 if __name__ == "__main__":
     # Configure
-    if len(sys.argv) < 3:
+    if len(sys.argv) < 4:
         raise Exception("Not enough parameters")
     filename = sys.argv[1]
     
@@ -139,5 +140,5 @@ if __name__ == "__main__":
    
     with os.fdopen(sys.stdout.fileno(), 'wb') as fp:
         fp.write(ESC + b'@' + ESC + b'P' + ESC + b'l\x00' + b'\r' + ESC + b'Q\x00')
-        for blob in _to_column_format (im,sys.argv[2]):
+        for blob in _to_column_format (im,sys.argv[2],int(sys.argv[3])):
             fp.write(blob)
