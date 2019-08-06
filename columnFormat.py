@@ -17,7 +17,7 @@ import os
 
 ESC = b"\x1b";
 
-def _to_column_format(im,colour='cmyk',overscan=2):
+def _to_column_format(im,colour='cmyk',overscan=2,mode=39):
     """
     Extract slices of an image as equal-sized blobs of column-format data.
 
@@ -70,7 +70,7 @@ def _to_column_format(im,colour='cmyk',overscan=2):
     else:
         raise Exception("Not known colour mode")
 
-    line_height = 8*3*overscan
+    line_height = overscan *(3 if mode & 32 else 1)
     top = 0
     left = 0
     while left < width_pixels:
@@ -91,27 +91,27 @@ def _to_column_format(im,colour='cmyk',overscan=2):
                         0: ki,
                         }
 
-                box = (left + i, top, left + line_height + i, top + height_pixels)
-                slice = switcher[col].transform((line_height, height_pixels), Image.EXTENT, box)
+                box = (left + i, top, left + line_height*8 + i, top + height_pixels)
+                slice = switcher[col].transform((line_height*8, height_pixels), Image.EXTENT, box)
                 data = slice.tobytes()
             
-                assert len(data) % (3 * overscan) == 0
-                assert len(data) == height_pixels * 3 * overscan
+                assert len(data) % line_height == 0
+                assert len(data) == height_pixels * line_height
 
                 yield ESC + b"r" + struct.pack("<B",col)
 
-                yield ESC + b"*" + struct.pack("<BH",39,len(data)//(3*overscan))
+                yield ESC + b"*" + struct.pack("<BH",mode,len(data)//(line_height))
 
                 ai = 0
-                for j in range(0, len(data), overscan*3):
-                    value = bitstring.Bits(data[j:j+3*overscan]).uintbe
+                for j in range(0, len(data), line_height):
+                    value = bitstring.Bits(data[j:j+(3 if mode & 32 else 1)*overscan]).uintbe
                     sparse = value
                     byte = 0x00
-                    for k in range(0, 24):
+                    for k in range(0, (24 if mode & 32 else 8)):
                         #100100100100100100100100
                         byte |= ((1 << (overscan * k + overscan - 1)) & sparse) >> (overscan * k - k + overscan - 1 )
-                    ai+=3
-                    yield bitstring.Bits(uintbe=byte, length=3*8).tobytes()
+                    ai+=(3 if mode & 32 else 1)
+                    yield bitstring.Bits(uintbe=byte, length=(3 if mode & 32 else 1)*8).tobytes()
                     
                 yield b"\r"
 
@@ -121,11 +121,11 @@ def _to_column_format(im,colour='cmyk',overscan=2):
                 yield ESC + b"+" + struct.pack("<B",1) + b"\n"
             else:
                 yield ESC + b"+" + struct.pack("<B",48-overscan+1) +b"\n"
-        left += line_height
+        left += line_height*8
 
 if __name__ == "__main__":
     # Configure
-    if len(sys.argv) < 4:
+    if len(sys.argv) < 5:
         raise Exception("Not enough parameters")
     filename = sys.argv[1]
     
@@ -140,5 +140,5 @@ if __name__ == "__main__":
    
     with os.fdopen(sys.stdout.fileno(), 'wb') as fp:
         fp.write(ESC + b'@' + ESC + b'P' + ESC + b'l\x00' + b'\r' + ESC + b'Q\x00')
-        for blob in _to_column_format (im,sys.argv[2],int(sys.argv[3])):
+        for blob in _to_column_format(im,sys.argv[2],int(sys.argv[3]),int(sys.argv[4])):
             fp.write(blob)
