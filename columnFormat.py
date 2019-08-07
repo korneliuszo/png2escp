@@ -17,7 +17,7 @@ import os
 
 ESC = b"\x1b";
 
-def _to_column_format(im,colour='cmyk',overscan=2,mode=39):
+def _to_column_format(im,colour='cmyk',overscan=2,mode=39,printer="24pin"):
     """
     Extract slices of an image as equal-sized blobs of column-format data.
 
@@ -117,15 +117,24 @@ def _to_column_format(im,colour='cmyk',overscan=2,mode=39):
 
                 assert ai == len(data)//overscan
 
-            if i < overscan-1:
-                yield ESC + b"+" + struct.pack("<B",1) + b"\n"
+            if printer == "24pin":
+                if i < overscan-1:
+                    yield ESC + b"+" + struct.pack("<B",1) + b"\n"
+                else:
+                    yield ESC + b"+" + struct.pack("<B",48-overscan+1) +b"\n"
+            elif printer == "9pin":
+                if i < overscan-1:
+                    yield ESC + b"3" + struct.pack("<B",1) + b"\n"
+                else:
+                    yield ESC + b"3" + struct.pack("<B",24-overscan+1) +b"\n"
             else:
-                yield ESC + b"+" + struct.pack("<B",48-overscan+1) +b"\n"
+                raise Exception('not known printer')
+
         left += line_height*8
 
 if __name__ == "__main__":
     # Configure
-    if len(sys.argv) < 5:
+    if len(sys.argv) < 6:
         raise Exception("Not enough parameters")
     filename = sys.argv[1]
     
@@ -140,5 +149,5 @@ if __name__ == "__main__":
    
     with os.fdopen(sys.stdout.fileno(), 'wb') as fp:
         fp.write(ESC + b'@' + ESC + b'P' + ESC + b'l\x00' + b'\r' + ESC + b'Q\x00')
-        for blob in _to_column_format(im,sys.argv[2],int(sys.argv[3]),int(sys.argv[4])):
+        for blob in _to_column_format(im,sys.argv[2],int(sys.argv[3]),int(sys.argv[4]),sys.argv[5]):
             fp.write(blob)
