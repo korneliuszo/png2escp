@@ -133,21 +133,46 @@ def _to_column_format(im,colour='cmyk',overscan=2,mode=39,printer="24pin",skip=1
         left += line_height*8
 
 if __name__ == "__main__":
-    # Configure
-    if len(sys.argv) < 7:
-        raise Exception("Not enough parameters")
-    filename = sys.argv[1]
-    
+    import argparse
+    parser = argparse.ArgumentParser(description='Process image for escp printer.',
+            formatter_class=argparse.ArgumentDefaultsHelpFormatter)
+    parser.add_argument('input',
+                    help='input image')
+    parser.add_argument('output', default='-', nargs='?',
+                    help='output file (dafaults to stdout)')
+    parser.add_argument('-p', '--printer', default='9pin',
+                    help='printer type (9pin or 24pin)')
+    parser.add_argument('-c', '--colour',
+                    default='k', action='store_const', const='cmyk',
+                    help='use colours')
+    parser.add_argument('-m', '--mode', default=5, type=int,
+                    help='mode to use for printing')
+    parser.add_argument('-o', '--overscan', default=1, type=int,
+                    help='vertical resolution multiplier')
+    parser.add_argument('-s', '--skip', default=1, type=int,
+                    help='how much n/(216/360)dpi jump when overscanning')
+
+    args = parser.parse_args()
+
     # Load Image
-    im = Image.open(filename)
+    im = Image.open(args.input)
     
+    if args.output == '-':
+        fp=os.fdopen(sys.stdout.fileno(), 'wb')
+    else:
+        fp=open(args.output,'wb')
+
     # Initial rotate. mirror, and extract blobs for each 8 or 24-pixel row
     # Convert to black & white via greyscale (so that bits can be inverted)
 
     # Generate ESC/POS header and print image
     # Height and width refer to output size here, image is rotated in memory so coordinates are swapped
    
-    with os.fdopen(sys.stdout.fileno(), 'wb') as fp:
-        fp.write(ESC + b'@' + ESC + b'P' + ESC + b'l\x00' + b'\r' + ESC + b'Q\x00')
-        for blob in _to_column_format(im,sys.argv[2],int(sys.argv[3]),int(sys.argv[4]),sys.argv[5],sys.argv[6]):
-            fp.write(blob)
+    fp.write(ESC + b'@' + ESC + b'P' + ESC + b'l\x00' + b'\r' + ESC + b'Q\x00')
+    for blob in _to_column_format(im,
+            printer=args.printer,
+            colour=args.colour,
+            mode=args.mode,
+            overscan=args.overscan,
+            skip=args.skip):
+        fp.write(blob)
