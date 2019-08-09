@@ -18,23 +18,17 @@ import os
 ESC = b"\x1b";
 
 def _to_column_format(im,colour='cmyk',overscan=2,mode=39,printer="24pin",skip=1):
-    """
-    Extract slices of an image as equal-sized blobs of column-format data.
 
-    :param im: Image to extract from
-    :param line_height: Printed line height in dots
-    """
-
-    #im = im.convert("L")  # Invert: Only works on 'L' images
-    #im = ImageOps.invert(im) # Bits are sent with 0 = white, 1 = black in ESC/POS
-    #im = im.convert("1") # Pure black and white
+    # Convert image to RGB type so we can process colours
     im = im.convert("RGB")
+    # Initial rotate. mirror
     im = im.transpose(Image.ROTATE_270).transpose(Image.FLIP_LEFT_RIGHT)
     ci = Image.new("1",im.size,0)
     mi = Image.new("1",im.size,0)
     yi = Image.new("1",im.size,0)
     ki = Image.new("1",im.size,0)
 
+    # Height and width refer to output size here, image is rotated in memory so coordinates are swapped
     width_pixels, height_pixels = im.size
 
     if colour == 'cmyk':
@@ -64,6 +58,7 @@ def _to_column_format(im,colour='cmyk',overscan=2,mode=39,printer="24pin",skip=1
                 else:
                     raise Exception("Not known colour %d,%d,%d"%(r,g,b))
     elif colour == 'k':
+        # Convert to black & white via greyscale (so that bits can be inverted)
         ki = im.convert("L")  # Invert: Only works on 'L' images
         ki = ImageOps.invert(ki) # Bits are sent with 0 = white, 1 = black in ESC/POS
         ki = ki.convert("1") # Pure black and white
@@ -90,7 +85,7 @@ def _to_column_format(im,colour='cmyk',overscan=2,mode=39,printer="24pin",skip=1
                         1: mi,
                         0: ki,
                         }
-
+                #, and extract blobs for each 8 or 24-pixel row
                 box = (left + i, top, left + line_height*8 + i, top + height_pixels)
                 slice = switcher[col].transform((line_height*8, height_pixels), Image.EXTENT, box)
                 data = slice.tobytes()
@@ -99,7 +94,7 @@ def _to_column_format(im,colour='cmyk',overscan=2,mode=39,printer="24pin",skip=1
                 assert len(data) == height_pixels * line_height
 
                 yield ESC + b"r" + struct.pack("<B",col)
-
+                # Generate ESC/POS header
                 yield ESC + b"*" + struct.pack("<BH",mode,len(data)//(line_height))
 
                 ai = 0
@@ -161,14 +156,10 @@ if __name__ == "__main__":
         fp=os.fdopen(sys.stdout.fileno(), 'wb')
     else:
         fp=open(args.output,'wb')
-
-    # Initial rotate. mirror, and extract blobs for each 8 or 24-pixel row
-    # Convert to black & white via greyscale (so that bits can be inverted)
-
-    # Generate ESC/POS header and print image
-    # Height and width refer to output size here, image is rotated in memory so coordinates are swapped
    
+    # Initialize printer
     fp.write(ESC + b'@' + ESC + b'P' + ESC + b'l\x00' + b'\r' + ESC + b'Q\x00')
+
     for blob in _to_column_format(im,
             printer=args.printer,
             colour=args.colour,
