@@ -1,4 +1,4 @@
-#!/usr/bin/env python
+#!/usr/bin/env python3
 """
 This is a minimal ESC/POS printing script which uses the 'column format'
 of image output.
