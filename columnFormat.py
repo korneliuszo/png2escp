@@ -23,40 +23,33 @@ def _to_column_format(im,colour='cmyk',overscan=2,mode=39,printer="24pin",skip=1
     im = im.convert("RGB")
     # Initial rotate. mirror
     im = im.transpose(Image.ROTATE_270).transpose(Image.FLIP_LEFT_RIGHT)
-    ci = Image.new("1",im.size,0)
-    mi = Image.new("1",im.size,0)
-    yi = Image.new("1",im.size,0)
-    ki = Image.new("1",im.size,0)
+    ci = Image.new("L",im.size,0)
+    mi = Image.new("L",im.size,0)
+    yi = Image.new("L",im.size,0)
+    ki = Image.new("L",im.size,0)
 
     # Height and width refer to output size here, image is rotated in memory so coordinates are swapped
     width_pixels, height_pixels = im.size
-
     if colour == 'cmyk':
         for y in range(0,height_pixels):
             for x in range(0,width_pixels):
                 box=(x,y,x+1,y+1)
                 r,g,b=im.getpixel((x, y))
-                if r==0 and g==0 and b==0:
-                    ki.paste(1,box)
-                elif r==255 and g==255 and b==255:
-                    pass
-                elif r==255 and g==0 and b==0:
-                    mi.paste(1,box)
-                    yi.paste(1,box)
-                elif r==0 and g==255 and b==0:
-                    ci.paste(1,box)
-                    yi.paste(1,box)
-                elif r==0 and g==0 and b==255:
-                    ci.paste(1,box)
-                    mi.paste(1,box)
-                elif r==255 and g==255 and b==0:
-                    yi.paste(1,box)
-                elif r==0 and g==255 and b==255:
-                    ci.paste(1,box)
-                elif r==255 and g==0 and b==255:
-                    mi.paste(1,box)
-                else:
-                    raise Exception("Not known colour %d,%d,%d"%(r,g,b))
+                rp=r/255
+                gp=g/255
+                bp=b/255
+                k=1-max(rp,gp,bp)
+                c=(1-rp-k)/(1-k) if k!=1 else 0
+                m=(1-gp-k)/(1-k) if k!=1 else 0
+                yc=(1-bp-k)/(1-k) if k!=1 else 0
+                ki.paste((int(k*255)),box)
+                ci.paste((int(c*255)),box)
+                mi.paste((int(m*255)),box)
+                yi.paste((int(yc*255)),box)
+        ki=ki.convert("1")
+        ci=ci.convert("1")
+        mi=mi.convert("1")
+        yi=yi.convert("1")
     elif colour == 'k':
         # Convert to black & white via greyscale (so that bits can be inverted)
         ki = im.convert("L")  # Invert: Only works on 'L' images
