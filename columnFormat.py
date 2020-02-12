@@ -61,6 +61,8 @@ def _to_column_format(im,colour='cmyk',overscan=2,mode=39,printer="24pin",skip=1
     line_height = overscan *(3 if mode & 32 else 1)
     top = 0
     left = 0
+    image = b""
+    lines = 0 #in printer dpi
     while left < width_pixels:
         remaining_pixels = width_pixels - left
         
@@ -86,9 +88,9 @@ def _to_column_format(im,colour='cmyk',overscan=2,mode=39,printer="24pin",skip=1
                 assert len(data) % line_height == 0
                 assert len(data) == height_pixels * line_height
 
-                yield ESC + b"r" + struct.pack("<B",col)
+                image += ESC + b"r" + struct.pack("<B",col)
                 # Generate ESC/POS header
-                yield ESC + b"*" + struct.pack("<BH",mode,len(data)//(line_height))
+                image += ESC + b"*" + struct.pack("<BH",mode,len(data)//(line_height))
 
                 ai = 0
                 for j in range(0, len(data), line_height):
@@ -99,26 +101,32 @@ def _to_column_format(im,colour='cmyk',overscan=2,mode=39,printer="24pin",skip=1
                         #100100100100100100100100
                         byte |= ((1 << (overscan * k + overscan - 1)) & sparse) >> (overscan * k - k + overscan - 1 )
                     ai+=(3 if mode & 32 else 1)
-                    yield bitstring.Bits(uintbe=byte, length=(3 if mode & 32 else 1)*8).tobytes()
+                    image += bitstring.Bits(uintbe=byte, length=(3 if mode & 32 else 1)*8).tobytes()
                     
-                yield b"\r"
+                image += b"\r"
 
                 assert ai == len(data)//overscan
 
             if printer == "24pin":
                 if i < overscan-1:
-                    yield ESC + b"+" + struct.pack("<B",skip) + b"\n"
+                    image += ESC + b"+" + struct.pack("<B",skip) + b"\n"
+                    lines += skip
                 else:
-                    yield ESC + b"+" + struct.pack("<B",48-(overscan-1)*skip) +b"\n"
+                    image += ESC + b"+" + struct.pack("<B",48-(overscan-1)*skip) +b"\n"
+                    lines += (48-(overscan-1)*skip)
             elif printer == "9pin":
                 if i < overscan-1:
-                    yield ESC + b"3" + struct.pack("<B",skip) + b"\n"
+                    image += ESC + b"3" + struct.pack("<B",skip) + b"\n"
+                    lines += skip
                 else:
-                    yield ESC + b"3" + struct.pack("<B",24-(overscan-1)*skip) +b"\n"
+                    image += ESC + b"3" + struct.pack("<B",24-(overscan-1)*skip) +b"\n"
+                    lines += (24-(overscan-1)*skip)
             else:
                 raise Exception('not known printer')
 
         left += line_height*8
+
+    return image, lines
 
 if __name__ == "__main__":
     import argparse
@@ -153,10 +161,10 @@ if __name__ == "__main__":
     # Initialize printer
     fp.write(ESC + b'@' + ESC + b'P' + ESC + b'l\x00' + b'\r' + ESC + b'Q\x00')
 
-    for blob in _to_column_format(im,
+    blob, lines = _to_column_format(im,
             printer=args.printer,
             colour=args.colour,
             mode=args.mode,
             overscan=args.overscan,
-            skip=args.skip):
-        fp.write(blob)
+            skip=args.skip)
+    fp.write(blob)
