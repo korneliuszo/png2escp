@@ -107,22 +107,19 @@ def _to_column_format(im,colour='cmyk',overscan=2,mode=39,printer="24pin",skip=1
 
                 assert ai == len(data)//overscan
 
+            if i < overscan-1:
+                linewidth=skip
+            else:
+                linedpi=(6 if printer == "24pin" else 3)
+                linewidth = linedpi*8-(overscan-1)*skip
+
             if printer == "24pin":
-                if i < overscan-1:
-                    image += ESC + b"+" + struct.pack("<B",skip) + b"\n"
-                    lines += skip
-                else:
-                    image += ESC + b"+" + struct.pack("<B",48-(overscan-1)*skip) +b"\n"
-                    lines += (48-(overscan-1)*skip)
+                image += ESC + b"+" + struct.pack("<B",linewidth) + b"\n"
             elif printer == "9pin":
-                if i < overscan-1:
-                    image += ESC + b"3" + struct.pack("<B",skip) + b"\n"
-                    lines += skip
-                else:
-                    image += ESC + b"3" + struct.pack("<B",24-(overscan-1)*skip) +b"\n"
-                    lines += (24-(overscan-1)*skip)
+                image += ESC + b"3" + struct.pack("<B",linewidth) + b"\n"
             else:
                 raise Exception('not known printer')
+            lines +=linewidth
 
         left += line_height*8
 
