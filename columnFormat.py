@@ -69,7 +69,7 @@ def _to_column_format(im,colour='cmyk',overscan=2,mode=39,printer="24pin",skip=1
         for i in range(0,overscan):
             
             if colour == 'cmyk':
-                colours =  (4,2,1,0)
+                colours =  (4,1,2,0)
             elif colour == 'k':
                 colours = (0,)
             for col in colours:
