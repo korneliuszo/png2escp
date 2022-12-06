@@ -116,7 +116,7 @@ def _to_column_format(im,colour='cmyk',overscan=2,mode=39,printer="24pin",skip=1
             if printer == "24pin":
                 image += ESC + b"+" + struct.pack("<B",linewidth) + b"\n"
             elif printer == "9pin":
-                image += ESC + b"3" + struct.pack("<B",linewidth) + b"\n"
+                image += ESC + b"J" + struct.pack("<B",linewidth) + b"\r"
             else:
                 raise Exception('not known printer')
             lines +=linewidth
