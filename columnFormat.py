@@ -58,7 +58,8 @@ def _to_column_format(im,colour='cmyk',overscan=2,mode=39,printer="24pin",skip=1
     else:
         raise Exception("Not known colour mode")
 
-    line_height = overscan *(3 if mode & 32 else 1)
+    mode_width = (6 if mode & 64 else (3 if mode & 32 else 1))
+    line_height = overscan *mode_width
     top = 0
     left = 0
     image = b""
@@ -97,14 +98,14 @@ def _to_column_format(im,colour='cmyk',overscan=2,mode=39,printer="24pin",skip=1
 
                 ai = 0
                 for j in range(0, len(data), line_height):
-                    value = bitstring.Bits(data[j:j+(3 if mode & 32 else 1)*overscan]).uintbe
+                    value = bitstring.Bits(data[j:j+mode_width*overscan]).uintbe
                     sparse = value
                     byte = 0x00
-                    for k in range(0, (24 if mode & 32 else 8)):
+                    for k in range(0, mode_width*8):
                         #100100100100100100100100
                         byte |= ((1 << (overscan * k + overscan - 1)) & sparse) >> (overscan * k - k + overscan - 1 )
-                    ai+=(3 if mode & 32 else 1)
-                    image += bitstring.Bits(uintbe=byte, length=(3 if mode & 32 else 1)*8).tobytes()
+                    ai+=mode_width
+                    image += bitstring.Bits(uintbe=byte, length=mode_width*8).tobytes()
                     
                 image += b"\r"
 
