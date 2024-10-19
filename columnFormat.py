@@ -55,6 +55,21 @@ def _to_column_format(im,colour='cmyk',overscan=2,mode=39,printer="24pin",skip=1
         ki = im.convert("L")  # Invert: Only works on 'L' images
         ki = ImageOps.invert(ki) # Bits are sent with 0 = white, 1 = black in ESC/POS
         ki = ki.convert("1") # Pure black and white
+    elif colour == 'rk':
+        for y in range(0,height_pixels):
+            for x in range(0,width_pixels):
+                box=(x,y,x+1,y+1)
+                r,g,b=im.getpixel((x, y))
+                rp=r/255
+                gp=g/255
+                bp=b/255
+                k=1-max(rp,gp,bp)
+                w=min(rp,gp,bp)
+                m=(rp-w)/(1-k) if k!=1 else 0
+                ki.paste((int(k*255)),box)
+                mi.paste((int(m*255)),box)
+        ki=ki.convert("1")
+        mi=mi.convert("1")
     else:
         raise Exception("Not known colour mode")
 
@@ -71,6 +86,8 @@ def _to_column_format(im,colour='cmyk',overscan=2,mode=39,printer="24pin",skip=1
             
             if colour == 'cmyk':
                 colours =  (4,1,2,0)
+            elif colour == 'rk':
+                colours = (1,0)
             elif colour == 'k':
                 colours = (0,)
             for col in colours:
@@ -142,7 +159,7 @@ if __name__ == "__main__":
     parser.add_argument('-p', '--printer', default='9pin',
                     help='printer type (9pin or 24pin)')
     parser.add_argument('-c', '--colour',
-                    default='k', action='store_const', const='cmyk',
+                    default='k', type=str,
                     help='use colours')
     parser.add_argument('-m', '--mode', default=5, type=int,
                     help='mode to use for printing')
