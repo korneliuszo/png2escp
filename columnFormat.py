@@ -88,9 +88,12 @@ def _to_column_format(im,colour='cmyk',overscan=2,mode=39,printer="24pin",skip=1
                 assert len(data) % line_height == 0
                 assert len(data) == height_pixels * line_height
 
-                image += ESC + b"r" + struct.pack("<B",col)
-                # Generate ESC/POS header
-                image += ESC + b"*" + struct.pack("<BH",mode,len(data)//(line_height))
+                if printer == "oki":
+                    image += ESC + struct.pack("<BH",b"KLYZ"[mode],len(data)//(line_height))
+                else:
+                    image += ESC + b"r" + struct.pack("<B",col)
+                    # Generate ESC/POS header
+                    image += ESC + b"*" + struct.pack("<BH",mode,len(data)//(line_height))
 
                 ai = 0
                 for j in range(0, len(data), line_height):
@@ -110,13 +113,15 @@ def _to_column_format(im,colour='cmyk',overscan=2,mode=39,printer="24pin",skip=1
             if i < overscan-1:
                 linewidth=skip
             else:
-                linedpi=(6 if printer == "24pin" else 3)
+                linedpi={"24pin":6,"lq510":3,"oki":3,"9pin":3,"escpos":2}[printer]
                 linewidth = linedpi*8-(overscan-1)*skip
 
             if printer == "24pin":
                 image += ESC + b"+" + struct.pack("<B",linewidth) + b"\n"
             elif printer == "9pin":
                 image += ESC + b"J" + struct.pack("<B",linewidth) + b"\r"
+            elif printer == "oki":
+                image += b"\r" + ESC + b"J" + struct.pack("<B",24)
             else:
                 raise Exception('not known printer')
             lines +=linewidth
@@ -156,7 +161,10 @@ if __name__ == "__main__":
         fp=open(args.output,'wb')
    
     # Initialize printer
-    fp.write(ESC + b'@' + ESC + b'P' + ESC + b'l\x00' + b'\r' + ESC + b'Q\x00')
+    if args.printer == "oki":
+        fp.write(b'\x18' + ESC + b'\x55\x00')
+    else:
+        fp.write(ESC + b'@' + ESC + b'P' + ESC + b'l\x00' + b'\r' + ESC + b'Q\x00')
 
     blob, lines = _to_column_format(im,
             printer=args.printer,
