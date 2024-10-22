@@ -179,6 +179,8 @@ if __name__ == "__main__":
                     help='how much n/(216/360)dpi jump when overscanning')
     parser.add_argument('-w', '--paper-width', default=0, type=int,
                     help='set paper width in escpos ("GS ( E <5> <3>")')
+    parser.add_argument('-l', '--left-offset', default=0, type=int,
+                    help='append white on left side for alignment')
     parser.add_argument('--cut', action="store_true",
                     help='papercut top image')
 
@@ -187,6 +189,13 @@ if __name__ == "__main__":
     # Load Image
     im = Image.open(args.input)
     
+    if args.left_offset:
+        im = ImageOps.pad(im,
+                          [sum(x) for x in zip(im.size,(args.left_offset,0))],
+                          method=Image.Resampling.NEAREST,
+                          centering=(1,0.5),
+                          color='#fff')
+
     if args.output == '-':
         fp=os.fdopen(sys.stdout.fileno(), 'wb')
     else:
