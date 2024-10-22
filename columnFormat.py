@@ -17,7 +17,7 @@ import os
 
 ESC = b"\x1b";
 
-def _to_column_format(im,colour='cmyk',overscan=2,mode=39,printer="24pin",skip=1):
+def _to_column_format(im,colour='cmyk',overscan=2,mode=39,printer="24pin",skip=1,cut=False):
 
     # Convert image to RGB type so we can process colours
     im = im.convert("RGB")
@@ -82,6 +82,10 @@ def _to_column_format(im,colour='cmyk',overscan=2,mode=39,printer="24pin",skip=1
     while left < width_pixels:
         remaining_pixels = width_pixels - left
         
+        if cut:
+            if left == (-(width_pixels+7+8)//8*8+10*8)%((width_pixels)//8*8+8):
+                image += ESC + b"i"
+
         for i in range(0,overscan):
             
             if colour == 'cmyk':
@@ -149,6 +153,8 @@ def _to_column_format(im,colour='cmyk',overscan=2,mode=39,printer="24pin",skip=1
             lines +=linewidth
 
         left += line_height*8
+    if cut:
+        image +=b"\r\n"
 
     return image, lines
 
@@ -171,6 +177,8 @@ if __name__ == "__main__":
                     help='vertical resolution multiplier')
     parser.add_argument('-s', '--skip', default=1, type=int,
                     help='how much n/(216/360)dpi jump when overscanning')
+    parser.add_argument('--cut', action="store_true",
+                    help='papercut top image')
 
     args = parser.parse_args()
 
@@ -193,5 +201,6 @@ if __name__ == "__main__":
             colour=args.colour,
             mode=args.mode,
             overscan=args.overscan,
-            skip=args.skip)
+            skip=args.skip,
+            cut=args.cut)
     fp.write(blob)
