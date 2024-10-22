@@ -177,6 +177,8 @@ if __name__ == "__main__":
                     help='vertical resolution multiplier')
     parser.add_argument('-s', '--skip', default=1, type=int,
                     help='how much n/(216/360)dpi jump when overscanning')
+    parser.add_argument('-w', '--paper-width', default=0, type=int,
+                    help='set paper width in escpos ("GS ( E <5> <3>")')
     parser.add_argument('--cut', action="store_true",
                     help='papercut top image')
 
@@ -191,6 +193,12 @@ if __name__ == "__main__":
         fp=open(args.output,'wb')
    
     # Initialize printer
+
+    if args.paper_width:
+        fp.write(b'\x1d(E\x03\x00\x01IN')
+        fp.write(b'\x1d(E\x04\x00\x05\x03' + struct.pack('<H',args.paper_width))
+        fp.write(b'\x1d(E\x04\x00\x02OUT')
+
     if args.printer == "oki":
         fp.write(b'\x18' + ESC + b'\x55\x00')
     else:
