@@ -183,6 +183,8 @@ if __name__ == "__main__":
                     help='append white on left side for alignment')
     parser.add_argument('--cut', action="store_true",
                     help='papercut top image')
+    parser.add_argument('-n','--count', default=1, type=int,
+                    help='print n times')
 
     args = parser.parse_args()
 
@@ -220,4 +222,5 @@ if __name__ == "__main__":
             overscan=args.overscan,
             skip=args.skip,
             cut=args.cut)
-    fp.write(blob)
+    for _ in range(args.count):
+        fp.write(blob)
